@@ -68,7 +68,7 @@ movie_ids <- movie_data$movie_id
 reviews_df <- data.frame(movie_id = character(), review = character(), rating = character(), stringsAsFactors = FALSE)
 
 # Iterate over each movie URL
-for (i in 1:5) {
+for (i in 1:length(movie_ids)) {
   print(i)
   movie_url <- movie_urls[i]
   # Scrape reviews and ratings for the current movie URL
