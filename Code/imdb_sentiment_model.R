@@ -1,88 +1,47 @@
-# Load necessary libraries
 library(tm)
+library(SnowballC)
 library(caret)
-library(e1071)
-library(ROCR)
-library(naivebayes)
-library(randomForest)
 
-# Load IMDb reviews dataset (replace 'imdb_reviews.csv' with your actual dataset file)
+# Load IMDb reviews dataset
 data <- read.csv('/Users/kelvinervais/Desktop/flickflow/Uncompressed Data/IMDB Dataset.csv', stringsAsFactors = FALSE)
 
-# Train-test split
-set.seed(123)
-train_index <- createDataPartition(data$sentiment, p = 0.7, list = FALSE)
-train <- data[train_index, ]
-test <- data[-train_index, ]
+# Preprocessing
+corpus <- Corpus(VectorSource(data$review))
+corpus <- tm_map(corpus, content_transformer(tolower))
+corpus <- tm_map(corpus, removePunctuation)
+corpus <- tm_map(corpus, removeNumbers)
+corpus <- tm_map(corpus, removeWords, stopwords("en"))
+corpus <- tm_map(corpus, stemDocument)
 
-# Data preprocessing
-corpus_train <- Corpus(VectorSource(train$review))
-corpus_train <- tm_map(corpus_train, tolower)
-corpus_train <- tm_map(corpus_train, removePunctuation)
-corpus_train <- tm_map(corpus_train, removeNumbers)
-corpus_train <- tm_map(corpus_train, removeWords, stopwords("en"))
-corpus_train <- tm_map(corpus_train, stripWhitespace)
-
-corpus_test <- Corpus(VectorSource(test$review))
-corpus_test <- tm_map(corpus_test, tolower)
-corpus_test <- tm_map(corpus_test, removePunctuation)
-corpus_test <- tm_map(corpus_test, removeNumbers)
-corpus_test <- tm_map(corpus_test, removeWords, stopwords("en"))
-corpus_test <- tm_map(corpus_test, stripWhitespace)
-
-# Create document-term matrix for both train and test sets
-dtm_train <- DocumentTermMatrix(corpus_train)
-dtm_train <- removeSparseTerms(dtm_train, 0.1)
-
-dtm_test <- DocumentTermMatrix(corpus_test, control = list(dictionary = Terms(dtm_train)))
-dtm_test <- removeSparseTerms(dtm_test, 0.1)
+# Create document term matrix
+dtm <- DocumentTermMatrix(corpus)
+dtm_sparse <- removeSparseTerms(dtm, 0.95)
 
 # Convert to data frame
-train_reviews <- as.data.frame(as.matrix(dtm_train))
-colnames(train_reviews) <- make.names(colnames(train_reviews))
-train_reviews$sentiment <- train$sentiment
-train_review_list = c()
-for (corpus_review in 1:length(corpus_train)){
-  print(corpus_review)
-  
-  train_review_list = c(train_review_list, corpus_train[[corpus_review]][[1]])
-}
-train_reviews$review = train_review_list
+dtm_df <- as.data.frame(as.matrix(dtm_sparse))
+colnames(dtm_df) <- make.names(colnames(dtm_df))
 
+# Add sentiment labels
+dtm_df$sentiment <- ifelse(data$sentiment == 'positive', 1, 0)
 
-test_reviews <- as.data.frame(as.matrix(dtm_test))
-colnames(test_reviews) <- make.names(colnames(test_reviews))
-test_reviews$sentiment <- test$sentiment
-test_review_list = c()
+# Split dataset into training and testing sets
+set.seed(123)
+train_index <- createDataPartition(dtm_df$sentiment, p = 0.8, list = FALSE)
+train_data <- dtm_df[train_index, ]
+test_data <- dtm_df[-train_index, ]
 
-for (corpus_review in 1:length(corpus_test)){
-  print(corpus_review)
-  
-  test_review_list = c(test_review_list, corpus_test[[corpus_review]][[1]])
-}
-test_reviews$review = test_review_list
-# Build the Naive Bayes model
-model <- naive_bayes(as.factor(sentiment) ~ ., data = train_reviews)
+# Train Logistic Regression model
+model <- glm(sentiment ~ ., data = train_data, family = binomial)
 
-# Make predictions
-predictions <- predict(model, newdata = data.frame(test_reviews$review))
+# Predictions
+predicted_classes_prob <- predict(model, newdata = test_data, type = "response")
+predicted_classes <- ifelse(predicted_classes_prob > 0.5, 1, 0)
 
-# Calculate accuracy
-accuracy <- mean(predictions == test_reviews$sentiment)
-cat("Accuracy:", accuracy, "\n")
+test_data$sentiment <- factor(test_data$sentiment, levels = c(0, 1))
 
-# Calculate probabilities
-probabilities <- predict(model, newdata = test_reviews, type = "prob")
-head(probabilities)
+# Convert predicted_classes to factor with levels
+predicted_classes <- factor(predicted_classes, levels = levels(test_data$sentiment))
 
-
-# Build the model (Random Forest)
-model <- randomForest(as.factor(sentiment) ~ ., data = train_reviews)
-
-# Make predictions
-predictions <- predict(model, newdata = test_reviews)
-
-# Calculate accuracy
-accuracy <- mean(predictions == test_reviews$sentiment)
-cat("Accuracy:", accuracy, "\n")
+# Evaluate model
+confusionMatrix(predicted_classes, test_data$sentiment)
 

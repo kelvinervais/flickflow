@@ -59,13 +59,13 @@ scrape_letterboxd_reviews <- function(movie_url, num_pages = 5) {
 
 
 movie_data = read.csv('movie_data.csv')
-movie_data$spoken_languages = toupper(movie_data$spoken_languages)
-movie_data = movie_data %>% filter(grepl('ENGLISH', spoken_languages)) %>% arrange(desc(popularity))
+
 # # Define a list of movie IDs
-movie_ids <- movie_data$movie_id
+movie_ids <- movie_data$letterboxd_id
 
 # Initialize an empty dataframe
 reviews_df <- data.frame(movie_id = character(), review = character(), rating = character(), stringsAsFactors = FALSE)
+movie_urls <- paste0("https://letterboxd.com/film/", movie_ids, "/")
 
 # Iterate over each movie URL
 for (i in 1:length(movie_ids)) {
@@ -77,7 +77,7 @@ for (i in 1:length(movie_ids)) {
   ratings <- scraped_data$ratings
   
   # Create a dataframe for the current movie URL
-  movie_reviews_df <- data.frame(movie_id = rep(movie_data$movie_id[i], length(reviews)),
+  movie_reviews_df <- data.frame(movie_id = rep(movie_ids[i], length(reviews)),
                                  review = unlist(reviews),
                                  rating = unlist(ratings),
                                  stringsAsFactors = FALSE)
@@ -87,7 +87,11 @@ for (i in 1:length(movie_ids)) {
 }
 
 
-write.csv(reviews_df, 'scraped_reviews_ratings.csv')
+write.csv(reviews_df, 'scraped_reviews_ratings_.csv')
 
 
-#df = read.csv('scraped_reviews_ratings.csv')
+df = read.csv('scraped_reviews_ratings.csv') 
+
+scraped_reviews = unique(df$movie_id)
+df = df %>% filter(movie_id %in% movie_ids)
+ 

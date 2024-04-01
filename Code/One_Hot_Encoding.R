@@ -1,60 +1,64 @@
-library(rvest)
-library(httr)
-library(dplyr)
-library(tidyverse)
-library(tidyr)
+# Load movie data
+movies <- read.csv("movie_data.csv")  # Assuming CSV file name is "movies_data.csv"
 
-movie_data = read.csv('movie_data.csv')
-movie_data$spoken_languages = toupper(movie_data$spoken_languages)
-movie_data = movie_data %>% filter(grepl('ENGLISH', spoken_languages))
-movie_data_init_features = movie_data %>% select(
-  tmdb_id, movie_title, genres, overview, year_released, runtime, vote_average, vote_count, spoken_languages, production_countries
-)
+# Convert genres to uppercase
+movies$genres <- toupper(movies$genres)
+movies$production_companies <- toupper(movies$production_companies)
 
-movies = movie_data_init_features %>% unique() %>% filter(genres != "[]", production_countries != "[]")
-movies$genres <- sapply(movies$genres, FUN = fromJSON)
-movies$spoken_languages <- sapply(movies$spoken_languages, FUN = fromJSON)
-movies$production_countries <- sapply(movies$production_countries, FUN = fromJSON)
-
-one_hot_encode_columns = function(df, column_name){
-  for (row in 1:nrow(df)){
-    print(row)
-    df_sliced = df %>% slice(row)
-    row_value = df_sliced[[column_name]]
-    for (value in row_value){
-      upper_column_name = toupper(value)
-      final_column_name = paste0("is_",upper_column_name)
-      final_column_name <- str_replace_all(final_column_name, "\\s", "")
-      if(length(final_column_name) > 1){
-        for (name in final_column_name){
-          if (!(name %in% names(df))){
-            df[[name]] = 0
-            df[row, name] <- 1
-            
-            
-          }
-          else{
-            df[row, name] <- 1
-            
-          }
-        }
-      }
-      else{
-        if (!(final_column_name %in% names(df))){
-          df[[final_column_name]] = 0
-          df[row, final_column_name] <- 1
-          
-          
-        }
-        else{
-          df[row, final_column_name] <- 1
-          
-        }
-      }
-    }
-  }
-  return(df)
+# One-hot encode genres
+genres <- unique(unlist(strsplit(movies$genres, ", ")))
+for (genre in genres) {
+  movies[paste0("GENRE_", genre)] <- grepl(genre, movies$genres)
 }
 
-test_encoding = one_hot_encode_columns(movies, 'genres')
-test_encoding = one_hot_encode_columns(test_encoding, 'production_countries')
+# Extract production company names and split them
+production_companies <- strsplit(as.character(movies$production_companies), ",\\s*")
+
+# Flatten the list of lists into a single vector
+production_companies <- unlist(production_companies)
+
+# Get counts of production companies
+production_counts <- table(production_companies)
+
+# Sort the counts in descending order
+production_counts <- sort(production_counts, decreasing = TRUE)
+
+top_100_production <- names(production_counts)[1:100]
+for (comp in top_100_production) {
+  movies[paste0("COMP_", comp)] <- grepl(comp, movies$production_companies)
+}
+
+
+movies$release_year = as.numeric(substr(movies$release_date, 1, 4))
+define_generation <- function(years) {
+  generations <- character(length(years))
+  
+  for (i in seq_along(years)) {
+    if (years[i] >= 2010) {
+      generations[i] <- paste0("2010's")
+    } else if (years[i] >= 2000) {
+      generations[i] <- paste0("2000's")
+    } else if (years[i] >= 1990) {
+      generations[i] <- paste0("1990's")
+    } else if (years[i] >= 1980) {
+      generations[i] <- paste0("1980's")
+    } else if (years[i] >= 1970) {
+      generations[i] <- paste0("1970's")
+    } else if (years[i] >= 1960) {
+      generations[i] <- paste0("1960's")
+    } else if (years[i] >= 1950) {
+      generations[i] <- paste0("1950's")
+    } else {
+      generations[i] <- paste0("Before 1950's")
+    }
+  }
+  
+  return(generations)
+}
+
+movies$generation = define_generation(movies$release_year)
+generation <- unique(unlist(strsplit(movies$generation, ", ")))
+for (gen in generation) {
+  movies[paste0("DECADE_", gen)] <- grepl(gen, movies$generation)
+}
+
