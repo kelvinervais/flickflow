@@ -72,7 +72,6 @@ make_recommendations <- function(user_id, k = 5, percentile_tolerance = 0.2) {
 
   for (pref_column in focus_columns) {
     if (grepl("percentile", pref_column)) {
-      print(nrow(suitable_movies))
       lower_bound <- aggregated_preferences[pref_column] - percentile_tolerance
       upper_bound <- aggregated_preferences[pref_column] + percentile_tolerance
       suitable_movies <- suitable_movies %>% 
@@ -100,8 +99,8 @@ make_recommendations <- function(user_id, k = 5, percentile_tolerance = 0.2) {
   })
   
   # Recommend top k movies based on similarity scores
-  top_recommendations <- suitable_movies[order(similarity_scores, decreasing = TRUE), ][1:50, ]
-  
+  top_recommendations <- suitable_movies[order(similarity_scores, decreasing = TRUE), ]
+  top_recommendations$similarity_score = similarity_scores
   return(top_recommendations)
 }
 
@@ -135,5 +134,5 @@ similarity_matrix <- (similarity_matrix - min(similarity_matrix, na.rm = TRUE)) 
 print(similarity_matrix)
 
 # Example: Make recommendations for user 1
-user_id <- 80
-recommendations_2 <- make_recommendations(user_id, k = 50)
+user_id <- 33
+recommendations <- make_recommendations(user_id, k = 5)

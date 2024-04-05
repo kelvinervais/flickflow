@@ -1,0 +1,13 @@
+name: flickflow
+title: flickflow
+username:
+account: kervais3
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 11664655
+bundleId: 8457297
+url: https://kervais3.shinyapps.io/flickflow/
+when: 1712295215.75287
+lastSyncTime: 1712295215.75289
+asMultiple: FALSE
+asStatic: FALSE

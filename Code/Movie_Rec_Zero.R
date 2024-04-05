@@ -1,14 +1,14 @@
 library(dplyr)
 # Load movie data
-movies <- read.csv("movie_data.csv")  
+movies = read.csv('/Users/kelvinervais/Desktop/flickflow/UI/flickflow-workspace/movie_data.csv')
 
 
 
 # Simulate user inputs
 user_prefs <- list(
-  top_genres = c("THRILLER", "DRAMA", "COMEDY"),
+  top_genres = c("THRILLER", "DRAMA", "HORROR"),
   ideal_runtime = 110,
-  generation_prefs = "2010's"
+  generation_prefs = "2010.s"
 )
 
 
@@ -28,7 +28,10 @@ filter_movies <- function(movies, user_prefs) {
   
   
   # Filter by generation preferences
-  filtered_movies <- filtered_movies[grepl(user_prefs$generation_prefs, filtered_movies$generation), ]
+  gen_column = paste0('DECADE_',user_prefs$generation)
+  
+  filtered_movies <- filtered_movies %>%
+    filter(!!sym(gen_column) == TRUE) 
   
   return(filtered_movies)
 }
