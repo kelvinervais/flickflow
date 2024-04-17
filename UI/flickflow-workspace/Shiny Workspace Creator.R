@@ -34,10 +34,33 @@ upsert_data = function(upsert_content, user) {
                         upsert = TRUE)
   
 }
-#mongo_database$drop()
 data <- mongo_database$find('{}')
 
 
+# uuid::UUIDgenerate()
+# mongo_df = data.frame(
+#   entry_type = 'user_profile', #Can be types User Profile, User Entries
+#   guidUserId =  UUIDgenerate(), #Global identifier for users, will be generated upon account creation and for any interaction
+#   username = 'zero', #username for account, only under type User Profile
+#   password = 'zero', #password for account, only under type User Profile
+#   date_joined = Sys.Date(), #date account created, only under type User Profile
+#   flicks_right = 0, #Running number of flicks right, only under type User Profile
+#   flicks_left = 0, #Running number of flicks left, only under type User Profile,
+#   total_flicks = 0,
+#   movies_flicked = c('Init'), #Running list of movie ids that were flicked, only under type User Profile
+#   modelStatus = c('Zero'),
+#   #User My Movies Columns
+#   movies_right = c('Init'), #Running list of movie ids that were flicked right, only under type User Profile
+#   movies_left = c('Init'), #Running list of movie ids that were flicked left, only under type User Profile,
+#   id_for_review = 0,
+#   rating = 0,
+#   review = 0
+# )
+# mongo_database$insert(mongo_df)
+# 
+# 
+# # Remove the specific user profile
+#mongo_database$remove('{"username": "zero"}')
 
 # USER SIM FOR COLLAB INIT ---------------------------------------------------------------
 cosine_similarity <- function(x, y) {
@@ -75,7 +98,7 @@ real_users$revenue_percentile <-  ecdf(movies$revenue_percentile)(real_users$rev
 real_users$budget_percentile <-  ecdf(movies$budget_percentile)(real_users$budget_percentile)
 real_users$runtime_percentile <-  ecdf(movies$runtime_percentile)(real_users$runtime_percentile)
 
-num_users <- 100
+num_users <- 150
 user_data <- replicate(num_users, simulate_user_preferences())
 
 # Convert simulated user preferences to dataframe

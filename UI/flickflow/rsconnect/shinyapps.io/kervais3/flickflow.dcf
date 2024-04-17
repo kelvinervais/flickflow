@@ -5,9 +5,9 @@ account: kervais3
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 11664655
-bundleId: 8470623
+bundleId: 8479473
 url: https://kervais3.shinyapps.io/flickflow/
-when: 1712646035.40123
-lastSyncTime: 1712646035.40125
+when: 1712811054.94895
+lastSyncTime: 1712811054.94896
 asMultiple: FALSE
 asStatic: FALSE

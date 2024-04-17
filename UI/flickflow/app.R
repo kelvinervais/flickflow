@@ -63,6 +63,17 @@ upsert_data = function(upsert_content, user) {
 }
 
 
+upsert_data_reviews_ratings = function(upsert_content, user, id_from_review) {
+  
+  
+  mongo_database$update(paste0('{"entry_type": "user_rating",
+                           "username": "',user,'", "id_for_review": ',id_from_review,'}'),
+                        paste0('{"$set":', toJSON_updater(upsert_content), '}'),
+                        upsert = TRUE)
+  
+  
+}
+
 
 
 
@@ -85,23 +96,6 @@ get_movie_info <- function(movie_id) {
     return(NULL)
   }
 }
-
-get_movie_streaming <- function(movie_id) {
-  url <- paste0("https://api.themoviedb.org/3/movie/", movie_id, "/watch/providers", "?api_key=", api_key)
-  if(length(url) != 1){
-    return()
-  }
-  response <- GET(url)
-  if (http_status(response)$category == "Success") {
-    movie_info <- content(response, as = "text") %>%
-      fromJSON()
-    return(movie_info)
-  } else {
-    return(NULL)
-  }
-}
-
-
 
 # Function to get movie credits
 get_movie_credits <- function(movie_id) {
@@ -348,7 +342,9 @@ ui <- dashboardPage(
                       fluidRow(
                         column(12,
                                align = 'center',
-                               uiOutput('homeRecDisplay') 
+                               uiOutput('homeRecDisplay'),
+                               actionButton("showMovieModal", "More Info"),
+
                                )
   
             
@@ -370,6 +366,11 @@ ui <- dashboardPage(
              )
 
       
+    ),
+    conditionalPanel(
+      condition = "input.tabs == 'ratings'"
+      
+      
     )
   )
 )
@@ -383,8 +384,12 @@ server <- function(input, output, session) {
   
   
   user_base_reactive = reactive({
-    init_mongo <- mongo_database$find()
-    
+    init_mongo <- mongo_database$find() %>% filter(entry_type == 'user_profile')
+    if(nrow(init_mongo) == 0){
+      init_mongo$username = 'zero'
+      init_mongo$password == 'zero'
+      
+    }
     user_base <- tibble::tibble(
       user = init_mongo$username,
       password = sapply(init_mongo$password, sodium::password_store),
@@ -500,6 +505,7 @@ server <- function(input, output, session) {
   # ...... CARD REACTIVE --------------------------------------------------------------------
   
   card_swipe_zero<- callModule(shinyswipr, "SwiprModel")
+  movies_swiped_this_session = reactiveVal(list())
   
   observeEvent(card_swipe_zero(),{
     direction = card_swipe_zero()
@@ -510,6 +516,7 @@ server <- function(input, output, session) {
       
       
     }
+    movies_swiped_this_session(append(movies_swiped_this_session(), movie_for_upload()$id))
     user_to_display = credentials()$info$user
     user_backend = mongo_backing_reactive() %>% filter(entry_type == 'user_profile',username == user_to_display)
     movie_swiped = movie_for_upload()
@@ -563,6 +570,8 @@ server <- function(input, output, session) {
     if (user_backend$modelStatus == 'Zero'){
       user_init_recs = unlist(user_backend$zero_state_recs)
       user_init_recs <- user_init_recs[user_init_recs != movie_swiped$id ]
+      user_init_recs <- user_init_recs[!(user_init_recs %in% unlist(user_backend_upsert_columns$movies_flicked))]
+      
       user_backend_upsert_columns$zero_state_recs = list(user_init_recs)
       
       movie_to_display = sample(user_init_recs, 1)
@@ -570,8 +579,8 @@ server <- function(input, output, session) {
     }
     
     if (user_backend$modelStatus == 'Base'){
-      user_movies_to_filter = user_backend_upsert_columns$movies_flicked
-      
+      user_movies_to_filter = unlist(user_backend_upsert_columns$movies_flicked)
+      user_movies_to_filter = c(user_movies_to_filter,unlist(movies_swiped_this_session()))
       user_to_pull = user_backend$username
       if(!(user_to_pull %in% user_df$username)){
         display_user = user_backend %>% select(username, all_of(user_pref_columns))
@@ -735,6 +744,7 @@ server <- function(input, output, session) {
              uiOutput('signupPostUsername'),
              uiOutput('signupPostPassword'),
              uiOutput('signupQuizMovies'),
+             
              uiOutput('finalSignupButton')
              
       )
@@ -754,9 +764,18 @@ server <- function(input, output, session) {
       tabItem(tabName = "movies", 
               h2("My Flicks"),
               p("Welcome to MyFlicks!  Here you can see your past swipes and learn more about your swipes"),
+              p("You can tap on a movie if you would like to see more info/leave a rating or review!"),
+              
               ),
-      tabItem(tabName = "ratings", h2("My Ratings")),
-      tabItem(tabName = "settings", h2("Settings"))
+      tabItem(tabName = "ratings", 
+              h2("User Ratings"),
+              h2('Coming Soon!')              
+              ),
+      tabItem(tabName = "settings",
+              h2("Settings"),
+              h2('Coming Soon!')
+              
+              )
     )    
   })
   
@@ -814,7 +833,7 @@ server <- function(input, output, session) {
       fluidRow(
         h1(movie_title),
         div(id = "myImageBlank",
-            tags$img(src = movie_poster, style = "width: 300px; height: 500px;")
+            tags$img(src = movie_poster, style = "width: 300px; height: 500px;"),
         )   
       )
       
@@ -848,7 +867,7 @@ server <- function(input, output, session) {
           fluidRow(
             h1(movie_title),
             div(id = "myImageBlank",
-                tags$img(src = 'test_logo.png', style = "width: 300px; height: 500px;")
+                tags$img(src = 'test_logo.png', style = "width: 200px; height: 400px;")
             )
           )
         )
@@ -860,7 +879,7 @@ server <- function(input, output, session) {
       fluidRow(
         h1(movie_title),
         div(id = "myImageBlank",
-            tags$img(src = movie_poster, style = "width: 300px; height: 500px;")
+            tags$img(src = movie_poster, style = "width: 200px; height: 400px;")
         )   
       )
       
@@ -870,6 +889,78 @@ server <- function(input, output, session) {
     
     
   })
+  
+  
+  # ......... MODAL UI --------------------------------------------------------------------
+  
+  output$modalOverview = renderText({
+    if(credentials()$user_auth == F){
+      return()
+    }  
+    user_to_display = credentials()$info$user
+    user_backend = mongo_backing_reactive() %>% filter(entry_type == 'user_profile',username == user_to_display)
+    movie_for_modal = movie_for_upload()
+    
+    
+    overview_text <- paste("<b>Overview:</b>", movie_for_modal$overview)
+    HTML(overview_text)
+    })
+  
+  
+  output$directorOverview = renderText({
+    if(credentials()$user_auth == F){
+      return()
+    }  
+    user_to_display = credentials()$info$user
+    user_backend = mongo_backing_reactive() %>% filter(entry_type == 'user_profile',username == user_to_display)
+    movie_for_modal = movie_for_upload()
+    
+    credits = get_movie_credits(movie_for_modal$id)
+    if (is.null(credits)){
+      final_layout = fluidRow(
+        h3('No credit info available')
+      )
+    }
+    cast = paste(credits$cast, sep = ' ')
+    director = credits$director
+    overview_text <- ""
+    
+    # Concatenate director information
+    overview_text <- paste(overview_text, "<b>Director:</b>", director, "<br>", "<b>Cast:</b>")
+    
+    # Concatenate cast information
+    for (i in 1:5) {
+      overview_text <- paste(overview_text,  cast[i])
+    }
+    HTML(overview_text)
+  })
+  
+  observeEvent(input$showMovieModal, {
+    
+    if(credentials()$user_auth == F){
+      return()
+    }  
+    user_to_display = credentials()$info$user
+    user_backend = mongo_backing_reactive() %>% filter(entry_type == 'user_profile',username == user_to_display)
+    movie_for_modal = movie_for_upload()
+  
+    movie_title = paste(movie_for_modal$title, "-", movie_for_modal$release_year)
+    
+    showModal(modalDialog(
+      title = movie_title,
+      fluidRow(
+        htmlOutput('modalOverview')
+        
+      ), 
+      fluidRow(
+        htmlOutput('directorOverview')
+        
+      ), 
+      easyClose = TRUE,
+      footer = NULL
+    ))
+  })
+  
   
   # ...... MY MOVIES UI --------------------------------------------------------------------
   
@@ -894,11 +985,11 @@ server <- function(input, output, session) {
       return()
     }
     user_to_display = credentials()$info$user
-    user_backend = mongo_backing_reactive() %>% filter(entry_type == 'user_profile',username == user_to_display)
+    user_backend = mongo_backing_reactive() %>% filter(entry_type == 'user_rating',username == user_to_display)
     if (nrow(user_backend) == 0) {
       return()
     }
-    value_to_display = ifelse(is.null(user_backend$total_flicks), 0, user_backend$total_flicks)
+    value_to_display = ifelse(is.null(user_backend$total_flicks), 0, nrow(user_backend))
     
     value_box_fixed(
       value_to_display, "TOTAL REVIEWS", icon = icon("user-pen"),
@@ -932,6 +1023,7 @@ server <- function(input, output, session) {
     
   })
   
+  myMoviesReactive = reactiveVal(NULL)
   output$myMoviesTable = renderDT({
     if(credentials()$user_auth == F){
       return()
@@ -945,22 +1037,167 @@ server <- function(input, output, session) {
     ids_unlisted = unlist(user_backend$movies_right)
     
     movie_table_for_user = movies %>% filter(id %in% ids_unlisted) %>% select(
+      id,
       title,
       release_year,   
       genres,
       tagline
       )
     
-    names(movie_table_for_user) = c('TITLE', 'YEAR', 'GENRES', 'TAGLINE')
+    user_reviews = mongo_backing_reactive() %>% filter(entry_type == 'user_rating',username == user_to_display)
+    user_review_data <- if (nrow(user_reviews) != 0) {
+      user_reviews %>% select(rating, id_for_review)  # Assuming user_reviews contains the rating data
+    } else {
+      NULL
+    }
+    
+    rating_column <- if (!is.null(user_review_data)) {
+      # If user has provided ratings
+      movie_ratings <- setNames(user_review_data$rating, user_review_data$id_for_review)
+      movie_ratings[as.character(movie_table_for_user$id)]
+    } else {
+      rep("", nrow(movie_table_for_user))
+    }
+    
+
+      
+    
+    
+    names(movie_table_for_user) = c('id','TITLE', 'YEAR', 'GENRES', 'TAGLINE')
+    movie_table_for_user$RATING = rating_column
+    myMoviesReactive(movie_table_for_user)
     datatable(
       movie_table_for_user,
       options = list(
         paging = TRUE,      # Enable pagination
         searching = TRUE,   # Enable search feature
-        info = FALSE
+        info = FALSE,
+        columnDefs = list(
+          list(visible = FALSE, targets = 0) # Hide the first column (ID)
+        )
         # Disable information display
+      ), selection = 'single'
+    )
+    })
+  
+  
+  
+  # ......... MODAL UI --------------------------------------------------------------------
+  
+  
+  output$modalOverview_MyMovies = renderText({
+    if(credentials()$user_auth == F){
+      return()
+    }  
+    selected_row <- input$myMoviesTable_rows_selected
+    
+    user_to_display = credentials()$info$user
+    user_backend = mongo_backing_reactive() %>% filter(entry_type == 'user_profile',username == user_to_display)
+    movie_for_modal = myMoviesReactive()[selected_row,'id']
+    movie_for_modal = movies %>% filter(id == movie_for_modal)
+    
+    overview_text <- paste("<b>Overview:</b>", movie_for_modal$overview)
+    HTML(overview_text)
+  })
+  
+  
+  output$directorOverview_MyMovies = renderText({
+    if(credentials()$user_auth == F){
+      return()
+    }  
+    selected_row <- input$myMoviesTable_rows_selected
+    
+    user_to_display = credentials()$info$user
+    user_backend = mongo_backing_reactive() %>% filter(entry_type == 'user_profile',username == user_to_display)
+    movie_for_modal =  myMoviesReactive()[selected_row,'id']
+    movie_for_modal = movies %>% filter(id == movie_for_modal)
+    
+    credits = get_movie_credits(movie_for_modal$id)
+    if (is.null(credits)){
+      final_layout = fluidRow(
+        h3('No credit info available')
       )
-    )  })
+    }
+    cast = paste(credits$cast, sep = ' ')
+    director = credits$director
+    overview_text <- ""
+    
+    # Concatenate director information
+    overview_text <- paste(overview_text, "<b>Director:</b>", director, "<br>", "<b>Cast:</b>")
+    
+    # Concatenate cast information
+    for (i in 1:5) {
+      overview_text <- paste(overview_text,  cast[i])
+    }
+    HTML(overview_text)
+  })
+  observeEvent(input$myMoviesTable_rows_selected, {
+    selected_row <- input$myMoviesTable_rows_selected
+    
+    if (!is.null(selected_row)) {
+      movie_title <- myMoviesReactive()[selected_row, "TITLE"]
+      
+      user_to_display = credentials()$info$user
+      user_backend = mongo_backing_reactive() %>% filter(entry_type == 'user_rating',username == user_to_display)
+      
+      movie_from_modal =  myMoviesReactive()[selected_row,'id']
+      movie_from_modal = movies %>% filter(id == movie_from_modal)    
+      user_backend_old_review = user_backend %>% filter(id_for_review == movie_from_modal$id)
+      if(nrow(user_backend_old_review) == 0){
+        rating = 3
+        review = ""
+      }
+      else{
+        rating = user_backend_old_review$rating
+        review = user_backend_old_review$review
+      }
+
+      
+      showModal(
+        modalDialog(
+          title = movie_title,
+          fluidRow(
+            htmlOutput('modalOverview_MyMovies'),
+            htmlOutput('directorOverview_MyMovies'),
+            br(),
+            column(12, align = 'center',
+                   sliderInput('ratingsMyMovies', 'My Rating', min = 0, max = 5, value = rating, step = .5),
+                   textAreaInput('reviewMyMovies', 'My Review', value = review),
+                   actionBttn('saveReviewRating', label = 'Save?', icon = icon('floppy-disk'))
+                   )
+            ),
+          easyClose = TRUE,
+          footer = NULL
+        )
+      )
+    }
+  })
+  
+  
+  observeEvent(input$saveReviewRating,{
+    selected_row <- input$myMoviesTable_rows_selected
+    
+    movie_from_modal =  myMoviesReactive()[selected_row,'id']
+    movie_from_modal = movies %>% filter(id == movie_from_modal)    
+    
+    rating = input$ratingsMyMovies
+    review = input$reviewMyMovies
+    id_from_review = movie_from_modal$id
+    update_df = data.frame(
+      rating = rating,
+      review = review
+    )
+    
+    user_to_display = credentials()$info$user
+    user_backend = mongo_backing_reactive() %>% filter(entry_type == 'user_profile',username == user_to_display)
+    
+    
+    upsert_data_reviews_ratings(update_df, user_backend$username, id_from_review)
+    
+    shinyalert("Rating/Review Saved", type = 'success')
+    
+  })
+  
   
   
   # ... SIDEBAR UI --------------------------------------------------------------------
@@ -973,7 +1210,7 @@ server <- function(input, output, session) {
     sidebarMenu(
       menuItem("Home", tabName = "home", icon = icon("home")),
       menuItem("My Movies", tabName = "movies", icon = icon("film")),
-      menuItem("My Ratings", tabName = "ratings", icon = icon("star")),
+      menuItem("Ratings", tabName = "ratings", icon = icon("star")),
       menuItem("Settings", tabName = "settings", icon = icon("gear"))
     )
   })
